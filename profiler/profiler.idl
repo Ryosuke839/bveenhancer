@@ -1,0 +1,27 @@
+import "oaidl.idl";
+import "ocidl.idl";
+
+[
+	object,
+	uuid(AFEE96F0-F815-427D-952B-1BF01A0A7BC9),
+	oleautomation,
+]
+interface Profiler : IUnknown
+{
+
+};
+
+[
+	uuid(47E1584D-4C54-4BF2-872C-79598795A4B4),
+	version(1.0),
+]
+library ProfilerLib
+{
+	importlib("stdole32.tlb");
+	[uuid(7ADA6F81-2F62-4432-8BA0-C18CECAE1546)]
+	coclass ProfilerImpl
+	{
+		[default] interface Profiler;
+	};
+}
+

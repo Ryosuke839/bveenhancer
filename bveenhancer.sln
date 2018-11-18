@@ -1,0 +1,35 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25123.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "injector", "injector\injector.vcxproj", "{D0DA0AEA-7038-4314-A351-6860B1FDF579}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "profiler", "profiler\profiler.vcxproj", "{D2D2DAE7-BFBC-42FF-909C-A47766565B7B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GraphicsEnhancer", "GraphicsEnhancer\GraphicsEnhancer.csproj", "{52CAE350-60C0-4A4A-98AF-15DE41927E47}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SurroundSound", "SurroundSound\SurroundSound.csproj", "{FC2560F7-E276-4940-B714-BE336390CDC7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DirectionalGlow", "DirectedGlow\DirectionalGlow.csproj", "{790E170A-1360-4CF3-BB4A-B601C1BB9640}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D0DA0AEA-7038-4314-A351-6860B1FDF579}.Release|x86.ActiveCfg = Release|Win32
+		{D0DA0AEA-7038-4314-A351-6860B1FDF579}.Release|x86.Build.0 = Release|Win32
+		{D2D2DAE7-BFBC-42FF-909C-A47766565B7B}.Release|x86.ActiveCfg = Release|Win32
+		{D2D2DAE7-BFBC-42FF-909C-A47766565B7B}.Release|x86.Build.0 = Release|Win32
+		{52CAE350-60C0-4A4A-98AF-15DE41927E47}.Release|x86.ActiveCfg = Release|x86
+		{52CAE350-60C0-4A4A-98AF-15DE41927E47}.Release|x86.Build.0 = Release|x86
+		{FC2560F7-E276-4940-B714-BE336390CDC7}.Release|x86.ActiveCfg = Release|x86
+		{FC2560F7-E276-4940-B714-BE336390CDC7}.Release|x86.Build.0 = Release|x86
+		{790E170A-1360-4CF3-BB4A-B601C1BB9640}.Release|x86.ActiveCfg = Release|x86
+		{790E170A-1360-4CF3-BB4A-B601C1BB9640}.Release|x86.Build.0 = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
