@@ -51,5 +51,6 @@
     <None Include="exports.def">
       <Filter>ソース ファイル</Filter>
     </None>
+    <None Include="README.md" />
   </ItemGroup>
 </Project>
