@@ -4,14 +4,14 @@
 
 #include <Windows.h>
 
-int main(int argc, char* argv[])
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	STARTUPINFO si = { sizeof(STARTUPINFO) };
 	PROCESS_INFORMATION pi = {};
 	char path[MAX_PATH + 1];
 	GetCurrentDirectory(MAX_PATH + 1, path);
 
-	std::string target(argc > 1 ? argv[1] : std::string(path) + "\\BveTs.exe");
+	std::string target(lpCmdLine[0] ? lpCmdLine : std::string(path) + "\\BveTs.exe");
 	std::string file(target);
 	file[file.rfind('\\')] = '\0';
 
@@ -24,23 +24,22 @@ int main(int argc, char* argv[])
 	CreateProcess(
 		target.c_str(),
 		nullptr,
-		//"powershell",
-		//"/k set",
-		nullptr,	//プロセスのセキュリティー記述子
-		nullptr,	//スレッドのセキュリティー記述子
-		false,	//ハンドルを継承しない
-		0,	//作成フラグ
+		nullptr,
+		nullptr,
+		false,
+		0,
 		env,
-		file.c_str(),	//カレントディレクトリーは同じ
+		file.c_str(),
 		&si,
 		&pi);
 
 	FreeEnvironmentStrings(env);
 
-	// 不要なスレッドハンドルをクローズする
+	MSG msg = {};
+	TranslateMessage(&msg);
+
 	CloseHandle(pi.hThread);
 
-	// 子プロセスの終了待ち
 	WaitForSingleObject(pi.hProcess, INFINITE);
 	
 	return 0;
