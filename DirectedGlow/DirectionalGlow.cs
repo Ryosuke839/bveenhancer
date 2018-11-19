@@ -46,7 +46,7 @@ namespace DirectionalGlow
 
         static public void Hook06000657(Device device)
         {
-            device.SetRenderState(RenderState.DestinationBlend, Blend.BothInverseSourceAlpha);
+            device.SetRenderState(RenderState.DestinationBlend, Blend.InverseSourceAlpha);
         }
 
         static Device device_global = null;
@@ -63,7 +63,7 @@ namespace DirectionalGlow
             }
             else
             {
-                device.SetRenderState(RenderState.DestinationBlend, Blend.BothInverseSourceAlpha);
+                device.SetRenderState(RenderState.DestinationBlend, Blend.InverseSourceAlpha);
                 device.SetRenderState(RenderState.FogEnable, true);
                 device_global = null;
             }
