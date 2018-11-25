@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
@@ -92,100 +93,217 @@ namespace GraphicsEnhancer
             device.EnableLight(0, true);
         }
 
-        static public void Hook0600003D(ref Texture field, Texture tex)
+        public sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>
+            where T : class
         {
-            if (tex != null && tex.LevelCount > 0)
+            #region Predefined
+            private static readonly ReferenceEqualityComparer<T> instance
+                = new ReferenceEqualityComparer<T>();
+            public static ReferenceEqualityComparer<T> Instance
             {
-                switch (tex.GetLevelDescription(0).Format)
-                {
-                    case Format.A8R8G8B8:
-                    case Format.A1R5G5B5:
-                    case Format.A4R4G4B4:
-                    case Format.A8:
-                    case Format.A8R3G3B2:
-                    case Format.A2B10G10R10:
-                    case Format.A8B8G8R8:
-                    case Format.A2R10G10B10:
-                    case Format.A16B16G16R16:
-                    case Format.A8P8:
-                    case Format.A8L8:
-                    case Format.A4L4:
-                    case Format.A2W10V10U10:
-                    case Format.A16B16G16R16F:
-                    case Format.A32B32G32R32F:
-                    case Format.A1:
-                    case Format.Dxt2:
-                    case Format.Dxt3:
-                    case Format.Dxt4:
-                    case Format.Dxt5:
-                        Surface lowerlevel = tex.GetSurfaceLevel(0);
-                        Surface lower = Surface.CreateOffscreenPlain(tex.Device, lowerlevel.Description.Width, lowerlevel.Description.Height, Format.A8R8G8B8, Pool.SystemMemory);
-                        Surface.FromSurface(lower, lowerlevel, Filter.Default, 0);
-                        lowerlevel.Dispose();
-                        for (int j = 1; j < tex.LevelCount; j++)
+                get { return instance; }
+            }
+            #endregion
+
+            public bool Equals(T left, T right)
+            {
+                return ReferenceEquals(left, right);
+            }
+
+            public int GetHashCode(T value)
+            {
+                return RuntimeHelpers.GetHashCode(value);
+            }
+        }
+
+        static void ApplyFilter(Texture tex)
+        {
+            if (tex == null)
+                return;
+            if (tex.LevelCount == 0)
+                return;
+            switch (tex.GetLevelDescription(0).Format)
+            {
+                case Format.A8R8G8B8:
+                case Format.A1R5G5B5:
+                case Format.A4R4G4B4:
+                case Format.A8:
+                case Format.A8R3G3B2:
+                case Format.A2B10G10R10:
+                case Format.A8B8G8R8:
+                case Format.A2R10G10B10:
+                case Format.A16B16G16R16:
+                case Format.A8P8:
+                case Format.A8L8:
+                case Format.A4L4:
+                case Format.A2W10V10U10:
+                case Format.A16B16G16R16F:
+                case Format.A32B32G32R32F:
+                case Format.A1:
+                case Format.Dxt2:
+                case Format.Dxt3:
+                case Format.Dxt4:
+                case Format.Dxt5:
+                    Surface lower = null;
+                    for (int j = 0; j < tex.LevelCount; j++)
+                    {
+                        Surface upperlevel = tex.GetSurfaceLevel(j);
+                        Surface upper = Surface.CreateOffscreenPlain(tex.Device, upperlevel.Description.Width, upperlevel.Description.Height, Format.A8R8G8B8, Pool.SystemMemory);
+
+                        if (j == 0)
+                            Surface.FromSurface(upper, upperlevel, Filter.Default, 0);
+
+                        DataRectangle upperrect = upper.LockRectangle(j == 0 ? LockFlags.None : LockFlags.Discard);
+                        int upperpitch = upperrect.Pitch;
+                        if (j != 0)
                         {
                             DataRectangle lowerrect = lower.LockRectangle(LockFlags.ReadOnly);
-                            DataStream lowerdata = lowerrect.Data;
                             int lowerpitch = lowerrect.Pitch;
-                            Surface upperlevel = tex.GetSurfaceLevel(j);
-                            Surface upper = Surface.CreateOffscreenPlain(tex.Device, upperlevel.Description.Width, upperlevel.Description.Height, Format.A8R8G8B8, Pool.SystemMemory);
-                            DataRectangle upperrect = upper.LockRectangle(LockFlags.Discard);
-                            DataStream upperdata = upperrect.Data;
-                            int upperpitch = upperrect.Pitch;
-                            uint[] array = new uint[4];
-                            byte[] array2 = new byte[4];
-                            byte[] array3 = new byte[4];
-                            for (int k = 0; k < (lower.Description.Height + 1) / 2; k++)
+                            
+                            unsafe
                             {
-                                int mc = k == (lower.Description.Height + 1) / 2 - 1 && lower.Description.Height % 2 == 1 ? 1 : 2;
-                                for (int l = 0; l < (lower.Description.Width + 1) / 2; l++)
+                                byte* lowerptr = (byte*)lowerrect.Data.DataPointer.ToPointer();
+                                byte* upperptr = (byte*)upperrect.Data.DataPointer.ToPointer();
+                                for (int k = 0; k < (lower.Description.Height + 1) / 2; k++)
                                 {
-                                    int nc = l == (lower.Description.Width + 1) / 2 - 1 && lower.Description.Width % 2 == 1 ? 1 : 2;
-                                    array[0] = array[1] = array[2] = array[3] = 0;
-                                    for (int m = 0; m < mc; m++)
+                                    int mc = k == (lower.Description.Height + 1) / 2 - 1 && lower.Description.Height % 2 == 1 ? 1 : 2;
+                                    for (int l = 0; l < (lower.Description.Width + 1) / 2; l++)
                                     {
-                                        for (int n = 0; n < nc; n++)
+                                        int nc = l == (lower.Description.Width + 1) / 2 - 1 && lower.Description.Width % 2 == 1 ? 1 : 2;
+                                        int r = 0, g = 0, b = 0, a = 0;
+                                        for (int m = 0; m < mc; m++)
                                         {
-                                            lowerdata.Read(array2, 0, 4);
-                                            array[0] += (uint)(array2[3] * array2[0]);
-                                            array[1] += (uint)(array2[3] * array2[1]);
-                                            array[2] += (uint)(array2[3] * array2[2]);
-                                            array[3] += (uint)array2[3];
+                                            for (int n = 0; n < nc; n++)
+                                            {
+                                                byte* src = lowerptr + (k * 2 + m) * lowerpitch + (l * 2 + n) * 4;
+                                                r += src[0] * src[3];
+                                                g += src[1] * src[3];
+                                                b += src[2] * src[3];
+                                                a += src[3];
+                                            }
                                         }
-                                        if (mc > 1)
-                                            lowerdata.Seek((m == 0) ? ((long)(lowerpitch - nc * 4)) : (-(long)lowerpitch), SeekOrigin.Current);
+                                        if (a == 0)
+                                            a = 1;
+                                        byte* dest = upperptr + k * upperpitch + l * 4;
+                                        dest[0] = (byte)(r / a);
+                                        dest[1] = (byte)(g / a);
+                                        dest[2] = (byte)(b / a);
+                                        dest[3] = (byte)(a / (nc * mc));
                                     }
-                                    if (array[3] == 0u)
-                                        array[3] = 1u;
-                                    array[0] /= array[3];
-                                    array[1] /= array[3];
-                                    array[2] /= array[3];
-                                    array[3] /= 4u;
-                                    array3[0] = (byte)array[0];
-                                    array3[1] = (byte)array[1];
-                                    array3[2] = (byte)array[2];
-                                    array3[3] = (byte)array[3];
-                                    upperdata.Write(array3, 0, 4);
                                 }
-                                if (k == (lower.Description.Height + 1) / 2 - 1)
-                                    break;
-                                lowerdata.Seek((long)(lowerpitch * 2 - lower.Description.Width * 4), SeekOrigin.Current);
-                                upperdata.Seek((long)(upperpitch - (lower.Description.Width + 1) / 2 * 4), SeekOrigin.Current);
                             }
                             lower.UnlockRectangle();
                             lower.Dispose();
-                            upper.UnlockRectangle();
-                            lower = upper;
-                            Surface.FromSurface(upperlevel, upper, Filter.Default, 0);
-                            upperlevel.Dispose();
                         }
-                        lower.Dispose();
-                        tex.AddDirtyRectangle();
-                        break;
-                }
+                        
+                        unsafe
+                        {
+                            byte* upperptr = (byte*)upperrect.Data.DataPointer.ToPointer();
+                            for (int k = 0; k < upper.Description.Height; k++)
+                            {
+                                for (int l = 0; l < upper.Description.Width; l++)
+                                {
+                                    if (upperptr[k * upperpitch + l * 4 + 3] > 0)
+                                        continue;
+                                    int r = 0, g = 0, b = 0, a = 0;
+                                    for (int m = -1; m < 2; m++)
+                                    {
+                                        byte* src = upperptr + (k + m + upper.Description.Height) % upper.Description.Height * upperpitch + l * 4;
+                                        r += src[0] * src[3];
+                                        g += src[1] * src[3];
+                                        b += src[2] * src[3];
+                                        a += src[3];
+                                    }
+                                    for (int n = -1; n < 2; n++)
+                                    {
+                                        byte* src = upperptr + k * upperpitch + (l + n + upper.Description.Width) % upper.Description.Width * 4;
+                                        r += src[0] * src[3];
+                                        g += src[1] * src[3];
+                                        b += src[2] * src[3];
+                                        a += src[3];
+                                    }
+                                    if (a == 0)
+                                    {
+                                        for (int m = -1; m < 2; m += 2)
+                                        {
+                                            for (int n = -1; n < 2; n += 2)
+                                            {
+                                                byte* src = upperptr + (k + m + upper.Description.Height) % upper.Description.Height * upperpitch + (l + n + upper.Description.Width) % upper.Description.Width * 4;
+                                                r += src[0] * src[3];
+                                                g += src[1] * src[3];
+                                                b += src[2] * src[3];
+                                                a += src[3];
+                                            }
+                                        }
+                                    }
+                                    if (a == 0)
+                                        continue;
+                                    byte* dest = upperptr + k * upperpitch + l * 4;
+                                    dest[0] = (byte)(r / a);
+                                    dest[1] = (byte)(g / a);
+                                    dest[2] = (byte)(b / a);
+                                }
+                            }
+                        }
+
+                        upper.UnlockRectangle();
+                        lower = upper;
+                        Surface.FromSurface(upperlevel, upper, Filter.Default, 0);
+                        upperlevel.Dispose();
+                    }
+                    lower.Dispose();
+                    tex.AddDirtyRectangle();
+                    break;
             }
-            field = tex;
         }
+
+        class RCTexture
+        {
+            String name;
+            Texture tex;
+            public int refcount;
+
+            public static Dictionary<String, RCTexture> strmap = new Dictionary<String, RCTexture>();
+            public static Dictionary<Texture, RCTexture> texmap = new Dictionary<Texture, RCTexture>(new ReferenceEqualityComparer<Texture>());
+
+            private RCTexture(String name, Texture tex)
+            {
+                this.name = name;
+                this.tex = tex;
+                this.refcount = 0;
+            }
+
+            public static Texture Get(Device device, string fileName, int width, int height, int levelCount, Usage usage, Format format, Pool pool, Filter filter, Filter mipFilter, int colorKey)
+            {
+                RCTexture rctex;
+                if (!strmap.ContainsKey(fileName))
+                {
+                    rctex = new RCTexture(fileName, Texture.FromFile(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey));
+                    ApplyFilter(rctex.tex);
+                    strmap[fileName] = rctex;
+                    texmap[rctex.tex] = rctex;
+                }
+                else
+                    rctex = strmap[fileName];
+                ++rctex.refcount;
+                return rctex.tex;
+            }
+
+            public static void Dispose(Texture tex)
+            {
+                if (tex == null)
+                    return;
+                if (texmap.ContainsKey(tex))
+                {
+                    RCTexture rctex = texmap[tex];
+                    if (--rctex.refcount > 0)
+                        return;
+                    strmap.Remove(rctex.name);
+                    texmap.Remove(tex);
+                }
+                tex.Dispose();
+            }
+        };
 
         public static void Hook060000F8(string name, Control.ControlCollection collection, SortedList<string, string> dict)
         {
@@ -259,17 +377,17 @@ namespace GraphicsEnhancer
 
         public static Texture Hook0600002D(Device device, string fileName, int width, int height, int levelCount, Usage usage, Format format, Pool pool, Filter filter, Filter mipFilter, int colorKey)
         {
-            return Texture.FromFile(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey);
+            return RCTexture.Get(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey);
         }
 
         public static Texture Hook06000030(Device device, string fileName, int width, int height, int levelCount, Usage usage, Format format, Pool pool, Filter filter, Filter mipFilter, int colorKey)
         {
-            return Texture.FromFile(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey);
+            return RCTexture.Get(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey);
         }
 
         public static void Hook06000032(ComObject obj)
         {
-            obj.Dispose();
+            RCTexture.Dispose(obj as Texture);
         }
     }
 }
