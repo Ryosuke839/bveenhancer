@@ -94,52 +94,94 @@ namespace GraphicsEnhancer
 
         static public void Hook0600003D(ref Texture field, Texture tex)
         {
-            if (tex != null)
+            if (tex != null && tex.LevelCount > 0)
             {
-                if (tex.GetLevelDescription(0).Format == Format.A8R8G8B8)
+                switch (tex.GetLevelDescription(0).Format)
                 {
-                    for (int j = 0; j < tex.LevelCount - 1; j++)
-                    {
-                        Surface surfaceLevel = tex.GetSurfaceLevel(j);
-                        Surface surfaceLevel2 = tex.GetSurfaceLevel(j + 1);
-                        DataRectangle dataRectangle = surfaceLevel.LockRectangle(LockFlags.ReadOnly);
-                        DataRectangle dataRectangle2 = surfaceLevel2.LockRectangle(LockFlags.Discard);
-                        DataStream data = dataRectangle.Data;
-                        DataStream data2 = dataRectangle2.Data;
-                        for (int k = 0; k < surfaceLevel2.Description.Height; k++)
+                    case Format.A8R8G8B8:
+                    case Format.A1R5G5B5:
+                    case Format.A4R4G4B4:
+                    case Format.A8:
+                    case Format.A8R3G3B2:
+                    case Format.A2B10G10R10:
+                    case Format.A8B8G8R8:
+                    case Format.A2R10G10B10:
+                    case Format.A16B16G16R16:
+                    case Format.A8P8:
+                    case Format.A8L8:
+                    case Format.A4L4:
+                    case Format.A2W10V10U10:
+                    case Format.A16B16G16R16F:
+                    case Format.A32B32G32R32F:
+                    case Format.A1:
+                    case Format.Dxt2:
+                    case Format.Dxt3:
+                    case Format.Dxt4:
+                    case Format.Dxt5:
+                        Surface lowerlevel = tex.GetSurfaceLevel(0);
+                        Surface lower = Surface.CreateOffscreenPlain(tex.Device, lowerlevel.Description.Width, lowerlevel.Description.Height, Format.A8R8G8B8, Pool.SystemMemory);
+                        Surface.FromSurface(lower, lowerlevel, Filter.Default, 0);
+                        lowerlevel.Dispose();
+                        for (int j = 1; j < tex.LevelCount; j++)
                         {
-                            for (int l = 0; l < surfaceLevel2.Description.Width; l++)
+                            DataRectangle lowerrect = lower.LockRectangle(LockFlags.ReadOnly);
+                            DataStream lowerdata = lowerrect.Data;
+                            int lowerpitch = lowerrect.Pitch;
+                            Surface upperlevel = tex.GetSurfaceLevel(j);
+                            Surface upper = Surface.CreateOffscreenPlain(tex.Device, upperlevel.Description.Width, upperlevel.Description.Height, Format.A8R8G8B8, Pool.SystemMemory);
+                            DataRectangle upperrect = upper.LockRectangle(LockFlags.Discard);
+                            DataStream upperdata = upperrect.Data;
+                            int upperpitch = upperrect.Pitch;
+                            uint[] array = new uint[4];
+                            byte[] array2 = new byte[4];
+                            byte[] array3 = new byte[4];
+                            for (int k = 0; k < (lower.Description.Height + 1) / 2; k++)
                             {
-                                uint[] array = new uint[4];
-                                for (int m = 0; m < 2; m++)
+                                int mc = k == (lower.Description.Height + 1) / 2 - 1 && lower.Description.Height % 2 == 1 ? 1 : 2;
+                                for (int l = 0; l < (lower.Description.Width + 1) / 2; l++)
                                 {
-                                    for (int n = 0; n < 2; n++)
+                                    int nc = l == (lower.Description.Width + 1) / 2 - 1 && lower.Description.Width % 2 == 1 ? 1 : 2;
+                                    array[0] = array[1] = array[2] = array[3] = 0;
+                                    for (int m = 0; m < mc; m++)
                                     {
-                                        byte[] array2 = new byte[4];
-                                        data.Read(array2, 0, 4);
-                                        array[0] += (uint)(array2[3] * array2[0]);
-                                        array[1] += (uint)(array2[3] * array2[1]);
-                                        array[2] += (uint)(array2[3] * array2[2]);
-                                        array[3] += (uint)array2[3];
+                                        for (int n = 0; n < nc; n++)
+                                        {
+                                            lowerdata.Read(array2, 0, 4);
+                                            array[0] += (uint)(array2[3] * array2[0]);
+                                            array[1] += (uint)(array2[3] * array2[1]);
+                                            array[2] += (uint)(array2[3] * array2[2]);
+                                            array[3] += (uint)array2[3];
+                                        }
+                                        if (mc > 1)
+                                            lowerdata.Seek((m == 0) ? ((long)(lowerpitch - nc * 4)) : (-(long)lowerpitch), SeekOrigin.Current);
                                     }
-                                    data.Seek((m == 0) ? ((long)(dataRectangle.Pitch - 8)) : (-(long)dataRectangle.Pitch), SeekOrigin.Current);
+                                    if (array[3] == 0u)
+                                        array[3] = 1u;
+                                    array[0] /= array[3];
+                                    array[1] /= array[3];
+                                    array[2] /= array[3];
+                                    array[3] /= 4u;
+                                    array3[0] = (byte)array[0];
+                                    array3[1] = (byte)array[1];
+                                    array3[2] = (byte)array[2];
+                                    array3[3] = (byte)array[3];
+                                    upperdata.Write(array3, 0, 4);
                                 }
-                                if (array[3] == 0u)
-                                    array[3] = 1u;
-                                array[0] /= array[3];
-                                array[1] /= array[3];
-                                array[2] /= array[3];
-                                array[3] /= 4u;
-                                data2.Write(Array.ConvertAll<uint, byte>(array, (uint c) => (byte)c), 0, 4);
+                                if (k == (lower.Description.Height + 1) / 2 - 1)
+                                    break;
+                                lowerdata.Seek((long)(lowerpitch * 2 - lower.Description.Width * 4), SeekOrigin.Current);
+                                upperdata.Seek((long)(upperpitch - (lower.Description.Width + 1) / 2 * 4), SeekOrigin.Current);
                             }
-                            data.Seek((long)(dataRectangle.Pitch * 2 - surfaceLevel2.Description.Width * 8), SeekOrigin.Current);
-                            data2.Seek((long)(dataRectangle2.Pitch - surfaceLevel2.Description.Width * 4), SeekOrigin.Current);
+                            lower.UnlockRectangle();
+                            lower.Dispose();
+                            upper.UnlockRectangle();
+                            lower = upper;
+                            Surface.FromSurface(upperlevel, upper, Filter.Default, 0);
+                            upperlevel.Dispose();
                         }
-                        surfaceLevel.UnlockRectangle();
-                        surfaceLevel2.UnlockRectangle();
-                        surfaceLevel.Dispose();
-                        surfaceLevel2.Dispose();
-                    }
+                        lower.Dispose();
+                        tex.AddDirtyRectangle();
+                        break;
                 }
             }
             field = tex;
@@ -213,6 +255,16 @@ namespace GraphicsEnhancer
         public static void Hook0600009A(Label restart)
         {
             restart.Visible = true;
+        }
+
+        public static Texture Hook0600002D(Device device, string fileName, int width, int height, int levelCount, Usage usage, Format format, Pool pool, Filter filter, Filter mipFilter, int colorKey)
+        {
+            return Texture.FromFile(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey);
+        }
+
+        public static Texture Hook06000030(Device device, string fileName, int width, int height, int levelCount, Usage usage, Format format, Pool pool, Filter filter, Filter mipFilter, int colorKey)
+        {
+            return Texture.FromFile(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey);
         }
     }
 }
