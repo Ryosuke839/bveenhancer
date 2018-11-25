@@ -50,10 +50,12 @@ namespace DirectionalGlow
         }
 
         static Device device_global = null;
+        static bool in_hook = false;
 
         static public void Hook06000035<T>(ref T structure, Device device, ref bool transparent)
         {
-            if (glowmap.ContainsKey(structure) && transparent)
+            in_hook = glowmap.ContainsKey(structure);
+            if (in_hook && transparent)
             {
                 transparent = false;
                 structure = (T)glowmap[structure];
@@ -84,7 +86,6 @@ namespace DirectionalGlow
             if (device_global == null)
                 return material;
 
-            //Matrix local = world * view;
             Matrix local = device_global.GetTransform(TransformState.World) * device_global.GetTransform(TransformState.View);
             Vector3 pos = Vector3.TransformCoordinate(new Vector3(), local);
             Vector3 dir = Vector3.TransformNormal(new Vector3(0, 0, 1), local);
@@ -94,6 +95,13 @@ namespace DirectionalGlow
             color.Alpha = (float)Math.Pow(Math.Max(Vector3.Dot(pos, dir), 0f), 2000);
             material.Diffuse = color;
             return material;
+        }
+
+        static public bool Hook0600003E(bool transparent)
+        {
+            if (in_hook)
+                return false;
+            return transparent;
         }
     }
 }
