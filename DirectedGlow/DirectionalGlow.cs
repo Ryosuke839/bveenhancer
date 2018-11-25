@@ -33,22 +33,6 @@ namespace DirectionalGlow
 
         static Dictionary<Object, Object> glowmap = new Dictionary<Object, Object>(new ReferenceEqualityComparer<Object>());
 
-        static public void Hook0600065B(Matrix world, Matrix view, Device device, ref float value)
-        {
-            Matrix local = world * view;
-            Vector3 pos = Vector3.TransformCoordinate(new Vector3(), local);
-            Vector3 dir = Vector3.TransformNormal(new Vector3(0, 0, 1), local);
-            pos.Normalize();
-            dir.Normalize();
-            value = (float)Math.Pow(Math.Max(Vector3.Dot(pos, dir), 0f), 500);
-            device.SetRenderState(RenderState.DestinationBlend, Blend.One);
-        }
-
-        static public void Hook06000657(Device device)
-        {
-            device.SetRenderState(RenderState.DestinationBlend, Blend.InverseSourceAlpha);
-        }
-
         static Device device_global = null;
         static bool in_hook = false;
 
