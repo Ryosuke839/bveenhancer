@@ -330,16 +330,16 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 									throw std::wstring(L"Invalid number of arguments for hook type PROXY");
 
 								injectpos.first = std::wcstoul(args[3].c_str(), nullptr, 16);
-								injectpos.second = injectpos.first + 4;
+								injectpos.second = injectpos.first + 5;
 
 								if (((p[0] & 7) == 3 ? 12 : 1) + injectpos.second > s)
 									throw std::wstring(L"Too long PROXY range, method body length is ") + std::to_wstring(s - ((p[0] & 7) == 3 ? 12 : 1));
 
 								replacetoken =
-									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 0]) << 0) |
-									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 1]) << 8) |
-									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 2]) << 16) |
-									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 3]) << 24);
+									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 1]) << 0) |
+									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 2]) << 8) |
+									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 3]) << 16) |
+									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 4]) << 24);
 
 								methodName = args[4];
 								argList = std::vector<std::wstring>(args.begin() + 5, args.end());
@@ -355,7 +355,7 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 							ULONG oldrva;
 							DWORD attrflags;
 							DWORD implflags;
-							if ((replacetoken & 0xFF000000) != 0x0A000000)
+							if (replacetoken >> 24 != 0x0A)
 							{
 								auto hr = import->GetMethodProps(replacetoken, &clstoken, nullptr, 0, nullptr, &attrflags, &oldsig, &oldsiglen, &oldrva, &implflags);
 								if (FAILED(hr))
@@ -665,8 +665,7 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 							}
 
 							// method call
-							if (args[2] != L"PROXY")
-								il.push_back(0x28);
+							il.push_back(0x28);
 							il.push_back((memberRef >> 0) & 0xFF);
 							il.push_back((memberRef >> 8) & 0xFF);
 							il.push_back((memberRef >> 16) & 0xFF);

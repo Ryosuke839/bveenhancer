@@ -266,5 +266,10 @@ namespace GraphicsEnhancer
         {
             return Texture.FromFile(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey);
         }
+
+        public static void Hook06000032(ComObject obj)
+        {
+            obj.Dispose();
+        }
     }
 }
