@@ -292,10 +292,17 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 								throw std::wstring(L"Too few arguments for type Hook");
 
 							const auto token = std::wcstoul(args[1].c_str(), nullptr, 16);
+							unsigned long replacetoken = token;
 
-							const std::set<std::wstring> typelist = { L"REPLACE", L"BEFORE", L"AFTER_RET", L"AFTER_NORET", L"INJECT" };
+							const std::set<std::wstring> typelist = { L"REPLACE", L"BEFORE", L"AFTER_RET", L"AFTER_NORET", L"INJECT", L"PROXY" };
 							if (!typelist.count(args[2]))
 								throw L"Unknown hook type " + args[2];
+
+							LPCBYTE p;
+							ULONG s;
+							hr = info->GetILFunctionBody(moduleID, token, &p, &s);
+							if (FAILED(hr))
+								throw L"Failed GetILFunctionBody for " + std::to_wstring(token);
 
 							std::pair<size_t, size_t> injectpos(0, 0);
 							std::vector<std::wstring> argList;
@@ -308,10 +315,35 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 								injectpos.first = std::wcstoul(args[3].c_str(), nullptr, 16);
 								injectpos.second = std::wcstoul(args[4].c_str(), nullptr, 16);
 
+								if (injectpos.first > injectpos.second)
+									throw std::wstring(L"Invalid INJECT range");
+
+								if (((p[0] & 7) == 3 ? 12 : 1) + injectpos.second > s)
+									throw std::wstring(L"Too long INJECT range, method body length is ") + std::to_wstring(s - ((p[0] & 7) == 3 ? 12 : 1));
+
 								methodName = args[5];
 								argList = std::vector<std::wstring>(args.begin() + 6, args.end());
-							}
-							else
+							} else
+							if (args[2] == L"PROXY")
+							{
+								if (args.size() != 5)
+									throw std::wstring(L"Invalid number of arguments for hook type PROXY");
+
+								injectpos.first = std::wcstoul(args[3].c_str(), nullptr, 16);
+								injectpos.second = injectpos.first + 4;
+
+								if (((p[0] & 7) == 3 ? 12 : 1) + injectpos.second > s)
+									throw std::wstring(L"Too long PROXY range, method body length is ") + std::to_wstring(s - ((p[0] & 7) == 3 ? 12 : 1));
+
+								replacetoken =
+									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 0]) << 0) |
+									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 1]) << 8) |
+									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 2]) << 16) |
+									(static_cast<unsigned long>(p[((p[0] & 7) == 3 ? 12 : 1) + injectpos.first + 3]) << 24);
+
+								methodName = args[4];
+								argList = std::vector<std::wstring>(args.begin() + 5, args.end());
+							} else
 							{
 								methodName = args[3];
 								argList = std::vector<std::wstring>(args.begin() + 4, args.end());
@@ -323,23 +355,25 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 							ULONG oldrva;
 							DWORD attrflags;
 							DWORD implflags;
-							auto hr = import->GetMethodProps(token, &clstoken, nullptr, 0, nullptr, &attrflags, &oldsig, &oldsiglen, &oldrva, &implflags);
-							if (FAILED(hr))
-								throw L"Failed GetMethodProps for " + std::to_wstring(token);
+							if ((replacetoken & 0xFF000000) != 0x0A000000)
+							{
+								auto hr = import->GetMethodProps(replacetoken, &clstoken, nullptr, 0, nullptr, &attrflags, &oldsig, &oldsiglen, &oldrva, &implflags);
+								if (FAILED(hr))
+									throw L"Failed GetMethodProps for " + std::to_wstring(token);
+							} else
+							{
+								auto hr = import->GetMemberRefProps(replacetoken, &clstoken, nullptr, 0, nullptr, &oldsig, &oldsiglen);
+								if (FAILED(hr))
+									throw L"Failed GetMemberRefProps for " + std::to_wstring(token);
+							}
 
 							mdMethodDef method = mdMethodDefNil;
-							if (args[2] != L"REPLACE")
+							if (args[2] != L"REPLACE" && args[2] != L"PROXY")
 							{
 								hr = metaDataEmit->DefineMethod(clstoken, (methodName + L"_org").c_str(), attrflags & ~mdSpecialName & ~mdRTSpecialName, oldsig, oldsiglen, oldrva, implflags, &method);
 								if (FAILED(hr))
 									throw L"Failed DefineMethod " + methodName + L"_org" + L" for " + std::to_wstring(clstoken);
 							}
-
-							LPCBYTE p;
-							ULONG s;
-							hr = info->GetILFunctionBody(moduleID, token, &p, &s);
-							if (FAILED(hr))
-								throw L"Failed GetILFunctionBody for " + std::to_wstring(token);
 
 							COR_SIGNATURE convention = *oldsig;
 
@@ -361,10 +395,14 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 								inst.resize(inst.size() + 4);
 								inst.resize(inst.size() - 4 + CorSigCompressData(generics, &inst[inst.size() - 4]));
 							}
-							sig.resize(sig.size() + 4);
-							sig.resize(sig.size() - 4 + CorSigCompressData(argList.size(), &sig[sig.size() - 4]));
 
 							std::vector<std::pair<PCCOR_SIGNATURE, PCCOR_SIGNATURE>> arglist(CorSigUncompressData(++oldsig));
+							sig.resize(sig.size() + 4);
+							sig.resize(sig.size() - 4 + CorSigCompressData(args[2] != L"PROXY" ? argList.size() : arglist.size() + (convention & IMAGE_CEE_CS_CALLCONV_HASTHIS ? 1 : 0), &sig[sig.size() - 4]));
+
+							std::vector<uint8_t> clssig = { ELEMENT_TYPE_CLASS, 0, 0, 0, 0 };
+							clssig.resize(1 + CorSigCompressToken(clstoken, &clssig[1]));
+
 							COR_SIGNATURE returnsig = *oldsig;
 							// return type
 							if (args[2] == L"BEFORE" || args[2] == L"AFTER_NORET" || args[2] == L"INJECT")
@@ -372,14 +410,18 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 							else
 								sig.insert(sig.end(), oldsig, ParseSignature(oldsig));
 							oldsig = ParseSignature(oldsig);
+
+							if (args[2] == L"PROXY" && convention & IMAGE_CEE_CS_CALLCONV_HASTHIS)
+								sig.insert(sig.end(), clssig.data(), clssig.data() + clssig.size());
+
 							for (auto& arg : arglist)
 							{
 								arg.first = oldsig;
 								arg.second = oldsig = ParseSignature(oldsig);
-							}
 
-							std::vector<uint8_t> clssig = { ELEMENT_TYPE_CLASS, 0, 0, 0, 0 };
-							clssig.resize(1 + CorSigCompressToken(clstoken, &clssig[1]));
+								if (args[2] == L"PROXY")
+									sig.insert(sig.end(), arg.first, arg.second);
+							}
 
 							if (convention & IMAGE_CEE_CS_CALLCONV_HASTHIS)
 								arglist.insert(arglist.begin(), std::make_pair(clssig.data(), clssig.data() + clssig.size()));
@@ -623,7 +665,8 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 							}
 
 							// method call
-							il.push_back(0x28);
+							if (args[2] != L"PROXY")
+								il.push_back(0x28);
 							il.push_back((memberRef >> 0) & 0xFF);
 							il.push_back((memberRef >> 8) & 0xFF);
 							il.push_back((memberRef >> 16) & 0xFF);
@@ -646,33 +689,33 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 								il.push_back((method >> 24) & 0xFF);
 							}
 
-							if (args[2] == L"INJECT")
+							if (args[2] == L"INJECT" || args[2] == L"PROXY")
 							{
 								if (static_cast<int>(il.size()) > (((p[0] & 7) == 3 ? 12 : 1) + injectpos.second))
 									throw L"Injected code is larger than injection range (" + std::to_wstring(injectpos.second - injectpos.first) + L" / " + std::to_wstring(il.size() - ((p[0] & 7) == 3 ? 12 : 1) - injectpos.first) + L")";
 
 								il.insert(il.end(), (((p[0] & 7) == 3 ? 12 : 1) + injectpos.second) - il.size(), 0x00); // nop
 								il.insert(il.end(), p + ((p[0] & 7) == 3 ? 12 : 1) + injectpos.second, p + s);
-							}
+							} else
+								// ret
+								il.push_back(0x2a);
 
-							// ret
-							il.push_back(0x2a);
-
-							if ((il[0] & 7) == 3)
-							{
-								if (args[2] != L"INJECT")
+							if (args[2] != L"PROXY")
+								if ((il[0] & 7) == 3)
 								{
-									*reinterpret_cast<uint16_t*>(&il[2]) = static_cast<uint16_t>(std::max(argList.size() + 1, args[2] == L"REPLACE" ? 0 : arglist.size()));
-									*reinterpret_cast<uint16_t*>(&il[0]) &= ~0x0008;
-									*reinterpret_cast<uint32_t*>(&il[4]) = il.size() - 12;
-								} else
-									*reinterpret_cast<uint16_t*>(&il[2]) += static_cast<uint16_t>(argList.size());
-							}
-							else
-							{
-								il[0] &= 3;
-								il[0] |= (il.size() - 1) << 2;
-							}
+									if (args[2] != L"INJECT")
+									{
+										*reinterpret_cast<uint16_t*>(&il[2]) = static_cast<uint16_t>(std::max(argList.size() + 1, args[2] == L"REPLACE" ? 0 : arglist.size()));
+										*reinterpret_cast<uint16_t*>(&il[0]) &= ~0x0008;
+										*reinterpret_cast<uint32_t*>(&il[4]) = il.size() - 12;
+									} else
+										*reinterpret_cast<uint16_t*>(&il[2]) += static_cast<uint16_t>(argList.size());
+								}
+								else
+								{
+									il[0] &= 3;
+									il[0] |= (il.size() - 1) << 2;
+								}
 
 							auto allocated = static_cast<uint8_t*>(methodMalloc->Alloc(il.size()));
 							std::copy(il.begin(), il.end(), allocated);
