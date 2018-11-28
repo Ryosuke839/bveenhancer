@@ -116,12 +116,24 @@ namespace GraphicsEnhancer
             }
         }
 
-        static void ApplyFilter(Texture tex)
+        static void ApplyFilter(ref Texture tex)
         {
             if (tex == null)
                 return;
             if (tex.LevelCount == 0)
                 return;
+
+            if (tex.GetLevelDescription(0).Format == Format.Dxt1)
+            {
+                Surface oldsuf = tex.GetSurfaceLevel(0);
+                Texture newtex = new Texture(tex.Device, oldsuf.Description.Width, oldsuf.Description.Height, tex.LevelCount, oldsuf.Description.Usage, Format.Dxt3, oldsuf.Description.Pool);
+                Surface newsuf = newtex.GetSurfaceLevel(0);
+                Surface.FromSurface(newsuf, oldsuf, Filter.None, 0);
+                newsuf.Dispose();
+                oldsuf.Dispose();
+                tex.Dispose();
+                tex = newtex;
+            }
             switch (tex.GetLevelDescription(0).Format)
             {
                 case Format.A8R8G8B8:
@@ -279,7 +291,7 @@ namespace GraphicsEnhancer
                 if (!strmap.ContainsKey(fileName))
                 {
                     rctex = new RCTexture(fileName, Texture.FromFile(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey));
-                    ApplyFilter(rctex.tex);
+                    ApplyFilter(ref rctex.tex);
                     strmap[fileName] = rctex;
                     texmap[rctex.tex] = rctex;
                 }
