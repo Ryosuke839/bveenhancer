@@ -428,6 +428,37 @@ namespace GraphicsEnhancer
             return RCTexture.Get(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey);
         }
 
+        public static void Hook0600002E(Mesh mesh, int i, ref Material mat)
+        {
+            mat = mesh.GetMaterials()[i].MaterialD3D;
+            mat.Ambient = mat.Diffuse;
+            Color4 col = new Color4(0.0f, 0.0f, 0.0f, 0.0f);
+
+            AttributeRange attr = mesh.GetAttributeTable()[i];
+            float[] buf = mesh.VertexBuffer.Lock(32 * attr.VertexStart, 32 * attr.VertexCount, LockFlags.ReadOnly).ReadRange<float>(8 * attr.VertexCount);
+            for (int j = 0; j < attr.VertexCount; ++j)
+            {
+                col.Red = Math.Min(col.Red, buf[8 * j + 6]);
+                col.Green = Math.Max(col.Green, buf[8 * j + 6]);
+                col.Blue = Math.Min(col.Blue, buf[8 * j + 7]);
+                col.Alpha = Math.Max(col.Alpha, buf[8 * j + 7]);
+            }
+            mesh.VertexBuffer.Unlock();
+
+            mat.Specular = col;
+        }
+
+        public static Result Hook06000035(BaseMesh obj, int subset)
+        {
+            Color4 col = obj.Device.Material.Specular;
+            obj.Device.SetSamplerState(0, SamplerState.AddressU, 0.0f <= col.Red && col.Green <= 1.0f ? TextureAddress.Clamp : TextureAddress.Wrap);
+            obj.Device.SetSamplerState(0, SamplerState.AddressV, 0.0f <= col.Blue && col.Alpha <= 1.0f ? TextureAddress.Clamp : TextureAddress.Wrap);
+            Result res = obj.DrawSubset(subset);
+            obj.Device.SetSamplerState(0, SamplerState.AddressU, TextureAddress.Wrap);
+            obj.Device.SetSamplerState(0, SamplerState.AddressV, TextureAddress.Wrap);
+            return res;
+        }
+
         public static Texture Hook06000030(Device device, string fileName, int width, int height, int levelCount, Usage usage, Format format, Pool pool, Filter filter, Filter mipFilter, int colorKey)
         {
             return RCTexture.Get(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey);
@@ -436,6 +467,11 @@ namespace GraphicsEnhancer
         public static void Hook06000032(ComObject obj)
         {
             RCTexture.Dispose(obj as Texture);
+        }
+
+        public static Matrix Hook060001F8(float x, float y, float z)
+        {
+            return Matrix.Translation(x - 0.5f, y + 0.5f, z);
         }
     }
 }
