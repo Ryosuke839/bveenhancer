@@ -216,6 +216,8 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 	WIN32_FIND_DATA win32fd;//defined at Windwos.h
 	hFind = FindFirstFile(L"*.bed", &win32fd);
 
+	std::map<mdMethodDef, mdMethodDef> replacement;
+
 	if (hFind != INVALID_HANDLE_VALUE)
 	{
 		do
@@ -291,7 +293,12 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 							if (args.size() < 4)
 								throw std::wstring(L"Too few arguments for type Hook");
 
-							const auto token = std::wcstoul(args[1].c_str(), nullptr, 16);
+							const auto originaltoken = std::wcstoul(args[1].c_str(), nullptr, 16);
+							auto token = originaltoken;
+							if (replacement.count(originaltoken))
+								token = replacement[originaltoken];
+							if (token == mdMethodDefNil)
+								throw std::to_wstring(originaltoken) + L" is already injected and completely replaced";
 							unsigned long replacetoken = token;
 
 							const std::set<std::wstring> typelist = { L"REPLACE", L"BEFORE", L"AFTER_RET", L"AFTER_NORET", L"INJECT", L"PROXY" };
@@ -373,7 +380,10 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 								hr = metaDataEmit->DefineMethod(clstoken, (methodName + L"_org").c_str(), attrflags & ~mdSpecialName & ~mdRTSpecialName, oldsig, oldsiglen, oldrva, implflags, &method);
 								if (FAILED(hr))
 									throw L"Failed DefineMethod " + methodName + L"_org" + L" for " + std::to_wstring(clstoken);
+								replacement[originaltoken] = method;
 							}
+							if (args[2] == L"REPLACE")
+								replacement[originaltoken] = mdMethodDefNil;
 
 							COR_SIGNATURE convention = *oldsig;
 
@@ -727,7 +737,11 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 							if (args.size() < 3)
 								throw std::wstring(L"Too few arguments for type Patch");
 
-							const auto token = std::wcstoul(args[1].c_str(), nullptr, 16);
+							auto token = std::wcstoul(args[1].c_str(), nullptr, 16);
+							if (replacement.count(token))
+								token = replacement[token];
+							if (token == mdMethodDefNil)
+								throw std::to_wstring(token) + L" is already injected and completely replaced";
 							const auto offset = std::wcstoul(args[2].c_str(), nullptr, 16);
 
 							LPCBYTE p;
