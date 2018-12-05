@@ -387,6 +387,42 @@ namespace GraphicsEnhancer
             restart.Visible = true;
         }
 
+        public static void Hook0600003D(Texture tex, ref bool trans, ref Material mat)
+        {
+            if (!trans)
+                return;
+            trans = mat.Diffuse.Alpha < 1.0f;
+            if (tex == null)
+                return;
+            if (tex.LevelCount <= 0)
+                return;
+            Surface suf = tex.GetSurfaceLevel(tex.LevelCount - 1);
+            Surface read = Surface.CreateOffscreenPlain(tex.Device, suf.Description.Width, suf.Description.Height, Format.A8R8G8B8, Pool.SystemMemory);
+            Surface.FromSurface(read, suf, Filter.None, 0);
+            suf.Dispose();
+            DataRectangle rect = read.LockRectangle(LockFlags.ReadOnly);
+            int pitch = rect.Pitch;
+            unsafe
+            {
+                byte* ptr = (byte*)rect.Data.DataPointer.ToPointer();
+                for (int k = 0; k < read.Description.Height; k++)
+                {
+                    for (int l = 0; l < read.Description.Width; l++)
+                    {
+                        if (ptr[k * pitch + l * 4 + 3] < 255)
+                        {
+                            trans = true;
+                            break;
+                        }
+                    }
+                    if (trans)
+                        break;
+                }
+            }
+            read.UnlockRectangle();
+            read.Dispose();
+        }
+
         public static Texture Hook0600002D(Device device, string fileName, int width, int height, int levelCount, Usage usage, Format format, Pool pool, Filter filter, Filter mipFilter, int colorKey)
         {
             return RCTexture.Get(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey);
