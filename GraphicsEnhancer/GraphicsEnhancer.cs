@@ -434,9 +434,20 @@ namespace GraphicsEnhancer
             mat.Ambient = mat.Diffuse;
             Color4 col = new Color4(0.0f, 0.0f, 0.0f, 0.0f);
 
-            AttributeRange attr = mesh.GetAttributeTable()[i];
-            float[] buf = mesh.VertexBuffer.Lock(32 * attr.VertexStart, 32 * attr.VertexCount, LockFlags.ReadOnly).ReadRange<float>(8 * attr.VertexCount);
-            for (int j = 0; j < attr.VertexCount; ++j)
+            int index = 0;
+            int count = mesh.VertexCount;
+            if (mesh.GetAttributeTable() != null && i < mesh.GetAttributeTable().Length)
+            {
+                AttributeRange attr = mesh.GetAttributeTable()[i];
+                if (attr != null)
+                {
+                    index = attr.VertexStart;
+                    count = attr.VertexCount;
+                }
+            }
+            
+            float[] buf = mesh.VertexBuffer.Lock(32 * index, 32 * count, LockFlags.ReadOnly).ReadRange<float>(8 * count);
+            for (int j = 0; j < count; ++j)
             {
                 col.Red = Math.Min(col.Red, buf[8 * j + 6]);
                 col.Green = Math.Max(col.Green, buf[8 * j + 6]);
