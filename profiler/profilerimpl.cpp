@@ -375,7 +375,7 @@ STDMETHODIMP ProfilerImpl::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatu
 							}
 
 							mdMethodDef method = mdMethodDefNil;
-							if (args[2] != L"REPLACE" && args[2] != L"PROXY")
+							if (args[2] != L"REPLACE" && args[2] != L"PROXY" && args[2] != L"INJECT")
 							{
 								hr = metaDataEmit->DefineMethod(clstoken, (methodName + L"_org").c_str(), attrflags & ~mdSpecialName & ~mdRTSpecialName, oldsig, oldsiglen, oldrva, implflags, &method);
 								if (FAILED(hr))
