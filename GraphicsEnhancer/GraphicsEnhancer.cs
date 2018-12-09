@@ -434,27 +434,37 @@ namespace GraphicsEnhancer
             mat.Ambient = mat.Diffuse;
             Color4 col = new Color4(0.0f, 0.0f, 0.0f, 0.0f);
 
-            int index = 0;
-            int count = mesh.VertexCount;
-            if (mesh.GetAttributeTable() != null && i < mesh.GetAttributeTable().Length)
+            if ((mesh.VertexFormat & VertexFormat.Texture1) != VertexFormat.None)
             {
-                AttributeRange attr = mesh.GetAttributeTable()[i];
-                if (attr != null)
+                int index = 0;
+                int count = mesh.VertexCount;
+                if (mesh.GetAttributeTable() != null && i < mesh.GetAttributeTable().Length)
                 {
-                    index = attr.VertexStart;
-                    count = attr.VertexCount;
+                    AttributeRange attr = mesh.GetAttributeTable()[i];
+                    if (attr != null)
+                    {
+                        index = attr.VertexStart;
+                        count = attr.VertexCount;
+                    }
+                }
+
+                int stride = mesh.VertexBuffer.Description.SizeInBytes / mesh.VertexCount;
+                count = Math.Min(count, mesh.VertexCount - index);
+                if (count > 0 && mesh.VertexBuffer != null)
+                {
+                    DataStream stream = mesh.VertexBuffer.Lock(stride * index, stride * count, LockFlags.ReadOnly);
+                    for (int j = 0; j < count; ++j)
+                    {
+                        stream.Seek(stride - 8, SeekOrigin.Current);
+                        Vector2 vec = stream.Read<Vector2>();
+                        col.Red = Math.Min(col.Red, vec.X);
+                        col.Green = Math.Max(col.Green, vec.X);
+                        col.Blue = Math.Min(col.Blue, vec.Y);
+                        col.Alpha = Math.Max(col.Alpha, vec.Y);
+                    }
+                    mesh.VertexBuffer.Unlock();
                 }
             }
-            
-            float[] buf = mesh.VertexBuffer.Lock(32 * index, 32 * count, LockFlags.ReadOnly).ReadRange<float>(8 * count);
-            for (int j = 0; j < count; ++j)
-            {
-                col.Red = Math.Min(col.Red, buf[8 * j + 6]);
-                col.Green = Math.Max(col.Green, buf[8 * j + 6]);
-                col.Blue = Math.Min(col.Blue, buf[8 * j + 7]);
-                col.Alpha = Math.Max(col.Alpha, buf[8 * j + 7]);
-            }
-            mesh.VertexBuffer.Unlock();
 
             mat.Specular = col;
         }
