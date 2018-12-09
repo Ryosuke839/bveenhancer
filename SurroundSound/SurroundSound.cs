@@ -84,7 +84,7 @@ namespace SurroundSound
             {
                 description.Format = waveStream.Format;
                 int num = 1;
-                if (description.Format.Channels > 1 && description.Format.FormatTag == WaveFormatTag.Pcm)
+                if (description.Format.Channels > 1)
                 {
                     num = (int)description.Format.Channels;
                     description.Format.Channels = 1;
@@ -102,33 +102,52 @@ namespace SurroundSound
                     array3 = array2;
                 else
                 {
-                    switch (description.Format.BitsPerSample)
+                    switch (description.Format.FormatTag)
                     {
-                        case 32:
-                            for (int i = 0; i < description.SizeInBytes; i += 4)
+                        case WaveFormatTag.Pcm:
+                            switch (description.Format.BitsPerSample)
                             {
-                                int num2 = 0;
-                                for (int j = 0; j < num * 4; j += 4)
-                                    num2 += BitConverter.ToInt32(array2, i * num + j) / num;
-                                Buffer.BlockCopy(BitConverter.GetBytes(num2), 0, array3, i, 4);
+                                case 32:
+                                    for (int i = 0; i < description.SizeInBytes; i += 4)
+                                    {
+                                        int num2 = 0;
+                                        for (int j = 0; j < num * 4; j += 4)
+                                            num2 += BitConverter.ToInt32(array2, i * num + j) / num;
+                                        Buffer.BlockCopy(BitConverter.GetBytes(num2), 0, array3, i, 4);
+                                    }
+                                    break;
+                                case 16:
+                                    for (int k = 0; k < description.SizeInBytes; k += 2)
+                                    {
+                                        short num3 = 0;
+                                        for (int l = 0; l < num * 2; l += 2)
+                                            num3 += (short)((int)BitConverter.ToInt16(array2, k * num + l) / num);
+                                        Buffer.BlockCopy(BitConverter.GetBytes(num3), 0, array3, k, 2);
+                                    }
+                                    break;
+                                case 8:
+                                    for (int m = 0; m < description.SizeInBytes; m++)
+                                    {
+                                        byte b = 0;
+                                        for (int n = 0; n < num; n++)
+                                            b += (byte)((int)array2[m * num + n] / num);
+                                        array3[m] = b;
+                                    }
+                                    break;
                             }
                             break;
-                        case 16:
-                            for (int k = 0; k < description.SizeInBytes; k += 2)
+                        case WaveFormatTag.IeeeFloat:
+                            switch (description.Format.BitsPerSample)
                             {
-                                short num3 = 0;
-                                for (int l = 0; l < num * 2; l += 2)
-                                    num3 += (short)((int)BitConverter.ToInt16(array2, k * num + l) / num);
-                                Buffer.BlockCopy(BitConverter.GetBytes(num3), 0, array3, k, 2);
-                            }
-                            break;
-                        case 8:
-                            for (int m = 0; m < description.SizeInBytes; m++)
-                            {
-                                byte b = 0;
-                                for (int n = 0; n < num; n++)
-                                    b += (byte)((int)array2[m * num + n] / num);
-                                array3[m] = b;
+                                case 32:
+                                    for (int i = 0; i < description.SizeInBytes; i += 4)
+                                    {
+                                        float num2 = 0.0f;
+                                        for (int j = 0; j < num * 4; j += 4)
+                                            num2 += BitConverter.ToSingle(array2, i * num + j) / num;
+                                        Buffer.BlockCopy(BitConverter.GetBytes(num2), 0, array3, i, 4);
+                                    }
+                                    break;
                             }
                             break;
                     }
