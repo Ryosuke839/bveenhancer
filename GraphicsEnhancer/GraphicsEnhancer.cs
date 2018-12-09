@@ -494,5 +494,58 @@ namespace GraphicsEnhancer
         {
             return Matrix.Translation(x - 0.5f, y + 0.5f, z);
         }
+
+        static Dictionary<ComObject, List<Vector3[]>> resmap = new Dictionary<ComObject, List<Vector3[]>>(new ReferenceEqualityComparer<ComObject>());
+        static Dictionary<Vector3[], VertexBuffer> bufmap = new Dictionary<Vector3[], VertexBuffer>(new ReferenceEqualityComparer<Vector3[]>());
+
+        public static void Hook06000033(ComObject mesh)
+        {
+            if (mesh == null)
+                return;
+
+            if (!resmap.ContainsKey(mesh))
+                return;
+
+            foreach (Vector3[] vertices in resmap[mesh])
+            {
+                bufmap[vertices].Dispose();
+                bufmap.Remove(vertices);
+            }
+
+            resmap.Remove(mesh);
+        }
+
+        public static void Hook06000036(Mesh mesh, Vector3[] vertices)
+        {
+            if (!bufmap.ContainsKey(vertices))
+            {
+                VertexBufferDescription desc = mesh.VertexBuffer.Description;
+                VertexBuffer buf = new VertexBuffer(mesh.Device, vertices.Length * 32, desc.Usage, VertexFormat.Position | VertexFormat.Texture1 | VertexFormat.Normal, desc.Pool);
+                DataStream source = mesh.VertexBuffer.Lock(0, desc.SizeInBytes, LockFlags.ReadOnly);
+                DataStream stream = buf.Lock(0, desc.SizeInBytes, LockFlags.None);
+                for (int i = 0; i < vertices.Length; i++)
+                {
+                    stream.Write(vertices[i]);
+                    source.Seek(12, SeekOrigin.Current);
+                    stream.WriteRange(source.ReadRange<float>(5));
+                }
+                buf.Unlock();
+                mesh.VertexBuffer.Unlock();
+
+                if (!resmap.ContainsKey(mesh))
+                    resmap.Add(mesh, new List<Vector3[]>());
+                resmap[mesh].Add(vertices);
+
+                bufmap.Add(vertices, buf);
+            }
+
+            mesh.Device.SetStreamSource(0, bufmap[vertices], 0, 32);
+            mesh.Device.Indices = mesh.IndexBuffer;
+        }
+
+        public static void Hook06000037(Device device, List<AttributeRange> attrs, int i)
+        {
+            device.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, attrs[i].VertexStart, attrs[i].VertexCount, attrs[i].FaceStart, attrs[i].FaceCount);
+        }
     }
 }
