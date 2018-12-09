@@ -94,7 +94,11 @@ namespace SurroundSound
                 }
                 description.SizeInBytes = (int)waveStream.Length;
                 if (num > 1)
+                {
                     description.SizeInBytes /= num;
+                    description.SizeInBytes /= description.Format.BitsPerSample / 8;
+                    description.SizeInBytes *= description.Format.BitsPerSample / 8;
+                }
                 byte[] array2 = new byte[(int)waveStream.Length];
                 byte[] array3 = new byte[description.SizeInBytes];
                 waveStream.Read(array2, 0, (int)waveStream.Length);
