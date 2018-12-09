@@ -389,9 +389,9 @@ namespace GraphicsEnhancer
 
         public static void Hook0600003D(Texture tex, ref bool trans, ref Material mat)
         {
-            if (!trans)
+            trans = false;
+            if (mat.Specular.Red == mat.Specular.Green && mat.Specular.Blue == mat.Specular.Alpha)
                 return;
-            trans = mat.Diffuse.Alpha < 1.0f;
             if (tex == null)
                 return;
             if (tex.LevelCount <= 0)
