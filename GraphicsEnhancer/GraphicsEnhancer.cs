@@ -520,9 +520,9 @@ namespace GraphicsEnhancer
             if (!bufmap.ContainsKey(vertices))
             {
                 VertexBufferDescription desc = mesh.VertexBuffer.Description;
-                VertexBuffer buf = new VertexBuffer(mesh.Device, vertices.Length * 32, desc.Usage, VertexFormat.Position | VertexFormat.Texture1 | VertexFormat.Normal, desc.Pool);
-                DataStream source = mesh.VertexBuffer.Lock(0, desc.SizeInBytes, LockFlags.ReadOnly);
-                DataStream stream = buf.Lock(0, desc.SizeInBytes, LockFlags.None);
+                VertexBuffer buf = new VertexBuffer(mesh.Device, mesh.VertexCount * 32, desc.Usage, VertexFormat.Position | VertexFormat.Texture1 | VertexFormat.Normal, desc.Pool);
+                DataStream source = mesh.VertexBuffer.Lock(0, mesh.VertexCount * 32, LockFlags.ReadOnly);
+                DataStream stream = buf.Lock(0, mesh.VertexCount * 32, LockFlags.None);
                 for (int i = 0; i < vertices.Length; i++)
                 {
                     stream.Write(vertices[i]);
@@ -545,7 +545,7 @@ namespace GraphicsEnhancer
 
         public static void Hook06000037(Device device, List<AttributeRange> attrs, int i)
         {
-            device.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, attrs[i].VertexStart, attrs[i].VertexCount, attrs[i].FaceStart, attrs[i].FaceCount);
+            device.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, attrs[i].VertexStart, attrs[i].VertexCount, attrs[i].FaceStart * 3, attrs[i].FaceCount);
         }
     }
 }
