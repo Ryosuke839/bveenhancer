@@ -11,8 +11,11 @@ namespace GraphicsEnhancer
 {
     public class Hook
     {
+        static bool fullscreen = false;
+
         static public void Hook06000005(ref Direct3D d3d, ref Device device, ref PresentParameters param, Control control, bool windowed, Size size, int quality)
         {
+            fullscreen |= !windowed;
             d3d = new Direct3D();
             int adapter = d3d.Adapters.DefaultAdapter.Adapter;
             Capabilities deviceCaps = d3d.GetDeviceCaps(adapter, DeviceType.Hardware);
@@ -25,8 +28,17 @@ namespace GraphicsEnhancer
             if (param.Windowed)
             {
                 param.DeviceWindowHandle = control.Handle;
-                param.BackBufferWidth = 0;
-                param.BackBufferHeight = 0;
+                if (!fullscreen)
+                {
+                    param.BackBufferWidth = 0;
+                    param.BackBufferHeight = 0;
+                } else
+                {
+                    param.BackBufferWidth = size.Width;
+                    param.BackBufferHeight = size.Height;
+                    control.ClientSize = new Size(currentDisplayMode.Width, currentDisplayMode.Height);
+                    control.Location = new Point(0, 0);
+                }
             }
             else
             {
