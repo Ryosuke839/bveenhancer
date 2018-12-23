@@ -444,10 +444,11 @@ namespace GraphicsEnhancer
 
         static public void HookMaterial(Device device, Material mat)
         {
-            if (mat_last == mat)
-                return;
+            if (mat_last.Diffuse != mat.Diffuse ||
+                mat_last.Ambient != mat.Ambient ||
+                mat_last.Emissive != mat.Emissive)
+                device.Material = mat;
             mat_last = mat;
-            device.Material = mat;
         }
 
         static BaseTexture tex_last = null;
@@ -549,7 +550,8 @@ namespace GraphicsEnhancer
 
             foreach (Vector3[] vertices in resmap[mesh])
             {
-                bufmap[vertices].Dispose();
+                if (!bufmap[vertices].Disposed)
+                    bufmap[vertices].Dispose();
                 bufmap.Remove(vertices);
             }
 
@@ -560,21 +562,42 @@ namespace GraphicsEnhancer
         {
             if (!bufmap.ContainsKey(vertices))
             {
-                VertexBufferDescription desc = mesh.VertexBuffer.Description;
-                VertexBuffer buf = new VertexBuffer(mesh.Device, mesh.VertexCount * 32, desc.Usage, VertexFormat.Position | VertexFormat.Texture1 | VertexFormat.Normal, desc.Pool);
-                DataStream source = mesh.VertexBuffer.Lock(0, mesh.VertexCount * 32, LockFlags.ReadOnly);
-                DataStream stream = buf.Lock(0, mesh.VertexCount * 32, LockFlags.None);
-                for (int i = 0; i < vertices.Length; i++)
-                {
-                    stream.Write(vertices[i]);
-                    source.Seek(12, SeekOrigin.Current);
-                    stream.WriteRange(source.ReadRange<float>(5));
-                }
-                buf.Unlock();
-                mesh.VertexBuffer.Unlock();
-
                 if (!resmap.ContainsKey(mesh))
                     resmap.Add(mesh, new List<Vector3[]>());
+
+                VertexBuffer buf = null;
+
+                foreach (Vector3[] v in resmap[mesh])
+                {
+                    if (v.Length != vertices.Length)
+                        continue;
+                    buf = bufmap[v];
+                    for (int i = 0; i < v.Length; ++i)
+                        if (v[i] != vertices[i])
+                        {
+                            buf = null;
+                            break;
+                        }
+                    if (buf != null)
+                        break;
+                }
+
+                if (buf == null)
+                {
+                    VertexBufferDescription desc = mesh.VertexBuffer.Description;
+                    buf = new VertexBuffer(mesh.Device, mesh.VertexCount * 32, desc.Usage, VertexFormat.Position | VertexFormat.Texture1 | VertexFormat.Normal, desc.Pool);
+                    DataStream source = mesh.VertexBuffer.Lock(0, mesh.VertexCount * 32, LockFlags.ReadOnly);
+                    DataStream stream = buf.Lock(0, mesh.VertexCount * 32, LockFlags.None);
+                    for (int i = 0; i < vertices.Length; i++)
+                    {
+                        stream.Write(vertices[i]);
+                        source.Seek(12, SeekOrigin.Current);
+                        stream.WriteRange(source.ReadRange<float>(5));
+                    }
+                    buf.Unlock();
+                    mesh.VertexBuffer.Unlock();
+                }
+
                 resmap[mesh].Add(vertices);
 
                 bufmap.Add(vertices, buf);
