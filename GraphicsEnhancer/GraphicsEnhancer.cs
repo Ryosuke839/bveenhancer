@@ -440,6 +440,26 @@ namespace GraphicsEnhancer
             return RCTexture.Get(device, fileName, width, height, levelCount, usage, format, pool, filter, Filter.Default, colorKey);
         }
 
+        static Material mat_last;
+
+        static public void HookMaterial(Device device, Material mat)
+        {
+            if (mat_last == mat)
+                return;
+            mat_last = mat;
+            device.Material = mat;
+        }
+
+        static BaseTexture tex_last = null;
+
+        static public Result HookTexture(Device device, int samplar, BaseTexture tex)
+        {
+            if (tex_last == tex)
+                return new Result();
+            tex_last = tex;
+            return device.SetTexture(samplar, tex);
+        }
+
         public static void Hook0600002E(Mesh mesh, int i, ref Material mat)
         {
             mat = mesh.GetMaterials()[i].MaterialD3D;
@@ -481,15 +501,24 @@ namespace GraphicsEnhancer
             mat.Specular = col;
         }
 
+        static TextureAddress last_u = TextureAddress.Wrap;
+        static TextureAddress last_v = TextureAddress.Wrap;
+
         public static Result Hook06000035(BaseMesh obj, int subset)
         {
-            Color4 col = obj.Device.Material.Specular;
-            obj.Device.SetSamplerState(0, SamplerState.AddressU, 0.0f <= col.Red && col.Green <= 1.0f ? TextureAddress.Clamp : TextureAddress.Wrap);
-            obj.Device.SetSamplerState(0, SamplerState.AddressV, 0.0f <= col.Blue && col.Alpha <= 1.0f ? TextureAddress.Clamp : TextureAddress.Wrap);
-            Result res = obj.DrawSubset(subset);
-            obj.Device.SetSamplerState(0, SamplerState.AddressU, TextureAddress.Wrap);
-            obj.Device.SetSamplerState(0, SamplerState.AddressV, TextureAddress.Wrap);
-            return res;
+            TextureAddress addr_u = 0.0f <= mat_last.Specular.Red && mat_last.Specular.Green <= 1.0f ? TextureAddress.Clamp : TextureAddress.Wrap;
+            if (addr_u != last_u)
+            {
+                obj.Device.SetSamplerState(0, SamplerState.AddressU, addr_u);
+                last_u = addr_u;
+            }
+            TextureAddress addr_v = 0.0f <= mat_last.Specular.Blue && mat_last.Specular.Alpha <= 1.0f ? TextureAddress.Clamp : TextureAddress.Wrap;
+            if (addr_v != last_v)
+            {
+                obj.Device.SetSamplerState(0, SamplerState.AddressV, addr_v);
+                last_v = addr_v;
+            }
+            return obj.DrawSubset(subset);
         }
 
         public static Texture Hook06000030(Device device, string fileName, int width, int height, int levelCount, Usage usage, Format format, Pool pool, Filter filter, Filter mipFilter, int colorKey)
@@ -557,6 +586,18 @@ namespace GraphicsEnhancer
 
         public static void Hook06000037(Device device, List<AttributeRange> attrs, int i)
         {
+            TextureAddress addr_u = 0.0f <= mat_last.Specular.Red && mat_last.Specular.Green <= 1.0f ? TextureAddress.Clamp : TextureAddress.Wrap;
+            if (addr_u != last_u)
+            {
+                device.SetSamplerState(0, SamplerState.AddressU, addr_u);
+                last_u = addr_u;
+            }
+            TextureAddress addr_v = 0.0f <= mat_last.Specular.Blue && mat_last.Specular.Alpha <= 1.0f ? TextureAddress.Clamp : TextureAddress.Wrap;
+            if (addr_v != last_v)
+            {
+                device.SetSamplerState(0, SamplerState.AddressV, addr_v);
+                last_v = addr_v;
+            }
             device.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, attrs[i].VertexStart, attrs[i].VertexCount, attrs[i].FaceStart * 3, attrs[i].FaceCount);
         }
     }
